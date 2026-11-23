@@ -25,7 +25,7 @@ function App() {
   const [query, setQuery] = useState('')
   const [language, setLanguage] = useState<Language>(() => localStorage.getItem('talent-hub-language') === 'hy' ? 'hy' : 'en')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('talent-hub-theme') === 'dark' ? 'dark' : 'light')
-  const [roleMode, setRoleMode] = useState<RoleMode>(() => { const saved = localStorage.getItem('talent-hub-demo-role'); return saved === 'student' || saved === 'guest' ? saved : 'admin' })
+  const [roleMode, setRoleMode] = useState<RoleMode>(() => { const saved = localStorage.getItem('talent-hub-demo-role'); return saved === 'admin' || saved === 'student' ? saved : 'guest' })
   const isAdmin = roleMode === 'admin'
   const [shortlistedIds, setShortlistedIds] = useState<string[]>(() => readStorage('talent-hub-shortlist', []))
   document.documentElement.lang = language
