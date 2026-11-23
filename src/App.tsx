@@ -9,6 +9,7 @@ import type { Course, Project, Proficiency, SkillEvidence, Student, StudentStatu
 
 type RoleMode = 'admin' | 'student' | 'guest'
 type HubState = { students: Student[]; setStudents: (v: Student[]) => void; projects: Project[]; setProjects: (v: Project[]) => void; query: string; setQuery: (v: string) => void; language: Language; setLanguage: (v: Language) => void; theme: 'light' | 'dark'; setTheme: (v: 'light' | 'dark') => void; roleMode: RoleMode; setRoleMode: (v: RoleMode) => void; isAdmin: boolean; shortlistedIds: string[]; toggleShortlist: (id: string) => void; t: (value: string) => string; notify: (v: string) => void; reset: () => void }
+const ADMIN_VIEW_AVAILABLE = import.meta.env.DEV
 const ACADEMIC_DATA_VERSION = '2026-11-r4'
 const HubContext = createContext<HubState | null>(null)
 function tx(value: string) { return translate(document.documentElement.lang === 'hy' ? 'hy' : 'en', value) }
@@ -25,8 +26,8 @@ function App() {
   const [query, setQuery] = useState('')
   const [language, setLanguage] = useState<Language>(() => localStorage.getItem('talent-hub-language') === 'hy' ? 'hy' : 'en')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('talent-hub-theme') === 'dark' ? 'dark' : 'light')
-  const [roleMode, setRoleMode] = useState<RoleMode>(() => { const saved = localStorage.getItem('talent-hub-demo-role'); return saved === 'admin' || saved === 'student' ? saved : 'guest' })
-  const isAdmin = roleMode === 'admin'
+  const [roleMode, setRoleMode] = useState<RoleMode>(() => { const saved = localStorage.getItem('talent-hub-demo-role'); if (ADMIN_VIEW_AVAILABLE && saved === 'admin') return 'admin'; return saved === 'student' ? 'student' : 'guest' })
+  const isAdmin = ADMIN_VIEW_AVAILABLE && roleMode === 'admin'
   const [shortlistedIds, setShortlistedIds] = useState<string[]>(() => readStorage('talent-hub-shortlist', []))
   document.documentElement.lang = language
   const [toast, setToast] = useState('')
@@ -108,12 +109,16 @@ function Shell() {
   ]
   const current = visibleNavItems.find(item => item.to === location.pathname) ?? visibleNavItems.find(item => location.pathname.startsWith(item.to) && item.to !== '/')
   const selectRole = (nextMode: RoleMode) => {
-    setRoleMode(nextMode)
+    const safeMode = nextMode === 'admin' && !ADMIN_VIEW_AVAILABLE ? 'guest' : nextMode
+    setRoleMode(safeMode)
     navigate('/')
     setShowMenu(false)
-    notify(nextMode === 'admin' ? 'Admin view enabled. Demo editing tools are available.' : nextMode === 'student' ? 'Student view enabled. This workspace is read-only.' : 'Guest organization view enabled. Browse and shortlist learners.')
+    notify(safeMode === 'admin' ? 'Admin view enabled. Demo editing tools are available.' : safeMode === 'student' ? 'Student view enabled. This workspace is read-only.' : 'Guest organization view enabled. Browse and shortlist learners.')
   }
-  const switchRole = () => selectRole(roleMode === 'admin' ? 'student' : roleMode === 'student' ? 'guest' : 'admin')
+  const switchRole = () => {
+    if (!ADMIN_VIEW_AVAILABLE) { selectRole(roleMode === 'student' ? 'guest' : 'student'); return }
+    selectRole(roleMode === 'admin' ? 'student' : roleMode === 'student' ? 'guest' : 'admin')
+  }
   const doSearch = (e: FormEvent) => { e.preventDefault(); navigate('/students'); setShowSearch(false) }
   return <div className="app-frame">
     {mobileNav && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
@@ -124,7 +129,7 @@ function Shell() {
       <nav className="side-nav">{visibleNavItems.map(item => { const Icon = item.icon; return <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setMobileNav(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={18}/><span>{t(item.label)}</span>{item.label === 'Talent Discovery' && <span className="nav-new">{language==='hy'?'ՆՈՐ':'NEW'}</span>}</NavLink> })}</nav>
       <div className="sidebar-spacer" />
       <div className="sidebar-help"><div className="help-icon"><CircleHelp size={17}/></div><strong>{t(roleMode === 'admin' ? 'Need a hand?' : roleMode === 'guest' ? 'For your organization' : 'Your learning space')}</strong><p>{t(roleMode === 'admin' ? 'Explore the demo data and discover the hub.' : roleMode === 'guest' ? 'Find emerging talent and save promising learner profiles.' : 'Track your progress and keep building your portfolio.')}</p><button onClick={() => navigate(roleMode === 'student' ? `/students/${studentViewer.id}` : '/talent')}>{t(roleMode === 'student' ? 'Open my profile' : 'Explore talent')} <ArrowRight size={14}/></button></div>
-      <div className="sidebar-user">{isAdmin ? <div className="user-avatar">AM</div> : <Avatar student={studentViewer} size="sm"/>}<div className="user-copy"><strong>{t(roleMode === 'admin' ? 'Talent Hub Manager' : roleMode === 'guest' ? 'Organization guest' : studentViewer.name)}</strong><small>{t(roleMode === 'admin' ? 'Demo admin' : roleMode === 'guest' ? 'Guest viewer' : 'Student preview')}</small></div>{isAdmin && <button className="icon-btn" onClick={reset} title={t('Reset demo data')} aria-label={t('Reset demo data')}><RotateCcw size={16}/></button>}<button className="icon-btn" onClick={() => setShowMenu(!showMenu)} aria-label={language==='hy'?'Լրացուցիչ գործողություններ':'More account actions'}><MoreHorizontal size={18}/></button>{showMenu && <div className="menu-popover user-menu">{isAdmin && <button onClick={() => { reset(); setShowMenu(false) }}><RotateCcw size={15}/>{t('Reset demo data')}</button>}{isAdmin && <button onClick={() => { navigate('/analytics'); setShowMenu(false) }}><Settings2 size={15}/>{t('Workspace analytics')}</button>}{(['admin','student','guest'] as RoleMode[]).map(mode => <button key={mode} disabled={mode === roleMode} onClick={() => selectRole(mode)}><UserRound size={15}/>{t(mode === 'admin' ? 'Admin view' : mode === 'student' ? 'Student view' : 'Guest viewer')}</button>)}</div>}</div>
+      <div className="sidebar-user">{isAdmin ? <div className="user-avatar">AM</div> : <Avatar student={studentViewer} size="sm"/>}<div className="user-copy"><strong>{t(roleMode === 'admin' ? 'Talent Hub Manager' : roleMode === 'guest' ? 'Organization guest' : studentViewer.name)}</strong><small>{t(roleMode === 'admin' ? 'Demo admin' : roleMode === 'guest' ? 'Guest viewer' : 'Student preview')}</small></div>{isAdmin && <button className="icon-btn" onClick={reset} title={t('Reset demo data')} aria-label={t('Reset demo data')}><RotateCcw size={16}/></button>}<button className="icon-btn" onClick={() => setShowMenu(!showMenu)} aria-label={language==='hy'?'Լրացուցիչ գործողություններ':'More account actions'}><MoreHorizontal size={18}/></button>{showMenu && <div className="menu-popover user-menu">{isAdmin && <button onClick={() => { reset(); setShowMenu(false) }}><RotateCcw size={15}/>{t('Reset demo data')}</button>}{isAdmin && <button onClick={() => { navigate('/analytics'); setShowMenu(false) }}><Settings2 size={15}/>{t('Workspace analytics')}</button>}{(ADMIN_VIEW_AVAILABLE ? ['admin','student','guest'] as RoleMode[] : ['student','guest'] as RoleMode[]).map(mode => <button key={mode} disabled={mode === roleMode} onClick={() => selectRole(mode)}><UserRound size={15}/>{t(mode === 'admin' ? 'Admin view' : mode === 'student' ? 'Student view' : 'Guest viewer')}</button>)}</div>}</div>
     </aside>
     <main className="main-shell">
       <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setMobileNav(true)} aria-label={language==='hy'?'Բացել նավիգացիան':'Open navigation'}><Menu size={21}/></button><div className="breadcrumbs"><span>{t('Workspace')}</span><ChevronRight size={14}/><strong>{t(current?.label ?? 'Profile')}</strong></div>
